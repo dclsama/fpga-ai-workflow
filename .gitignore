@@ -1,0 +1,16 @@
+sim/
+*.log
+*.wdb
+*.vcd
+*.jou
+*.pb
+vivado_*
+.vivado/
+.xsim/
+*_snapshot*
+webtalk*
+*.backup.jou
+*.backup.log
+xsim.dir/
+vivado_project/
+.retry_count
