@@ -1175,32 +1175,32 @@ fib_loop:
 ; Demo 3: GCD — Euclidean by Repeated Subtraction
 ; Computes GCD(48, 18) = 6
 ; ============================================================
-; Registers:
-;   R0 = a, R1 = b, R2 = temp (a-b or b-a)
-; Algorithm:
-;   while a != b:
-;     if a > b: a = a - b
-;     else:     b = b - a
-;   output a (or b, they are equal)
+; Registers: R0=a, R1=b, R2=temp
+; Key insight: after SUB a-b, bit 7 of result tells
+;   if a<b (bit7=1, borrow) vs a>=b (bit7=0)
+; We extract bit7 via ANDI+SHRI, then CMPI+JZ
 ; ============================================================
 
     LDI  R0, 48         ; a = 48
     LDI  R1, 18         ; b = 18
 
 gcd_loop:
-    SUB  R2, R0, R1     ; R2 = a - b, Z=1 if equal, C=1 if a < b
-    JZ   gcd_done       ; a == b → found GCD
+    SUB  R2, R0, R1     ; R2 = a - b, Z=1 if a==b
+    JZ   gcd_done       ; a == b -> done
 
-    JC   b_is_larger    ; a < b → b is larger
+    ; Extract bit 7 to detect a < b
+    ANDI R2, 0x80       ; R2 = R2 & 0x80
+    SHRI R2, 7          ; R2 = 1 if a<b, 0 if a>=b
+    CMPI R2, 1          ; Compare: Z=1 if R2==1 (a<b)
+    JZ   b_is_larger    ; R2==1 -> a < b
 
-    ; a > b: a = a - b
-    MOV  R0, R2
+    ; a >= b: a = a - b
+    SUB  R0, R0, R1
     JMP  gcd_loop
 
 b_is_larger:
     ; b > a: b = b - a
-    SUB  R2, R1, R0     ; R2 = b - a
-    MOV  R1, R2
+    SUB  R1, R1, R0
     JMP  gcd_loop
 
 gcd_done:
