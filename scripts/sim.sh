@@ -60,11 +60,10 @@ SNAPSHOT="${MODULE}_tb"
 # ---- Helper: find RTL files --------------------------------------------------
 find_rtl_files() {
     # Search recursively in rtl/ but exclude legacy LEG/ directory and templates
+    # Use -prune to skip LEG/ entirely (avoids case-insensitivity issues on Windows)
     local files
-    files=$(find "$RTL_DIR" \( -name "*.v" -o -name "*.sv" \) \
-        ! -path "$RTL_DIR/LEG/*" \
-        ! -name "_*" \
-        2>/dev/null | sort)
+    files=$(find "$RTL_DIR" -type d -name "LEG" -prune -o \
+        \( -name "*.v" -o -name "*.sv" \) ! -name "_*" -print 2>/dev/null | sort)
     if [ -z "$files" ]; then
         echo "WARNING: No RTL files found in $RTL_DIR/"
         echo "  Make sure your Verilog source files are in the rtl/ directory."
@@ -76,7 +75,7 @@ find_rtl_files() {
 find_tb_files() {
     # Search for testbench in tb/ and subdirectories
     local tb_file
-    for search_dir in "$TB_DIR" "$TB_DIR/leg_lib" "$TB_DIR/leg"; do
+    for search_dir in "$TB_DIR" "$TB_DIR/leg_lib" "$TB_DIR/leg_core"; do
         tb_file="$search_dir/${MODULE}_tb.sv"
         if [ -f "$tb_file" ]; then
             echo "$tb_file"
