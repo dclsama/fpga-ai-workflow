@@ -707,13 +707,18 @@ function executeOneInstruction() {
         case 0x0F: alu_op = 1; imm_sel = true; flag_upd = true; break; // CMPI
 
         // ---- Data Transfer ----
-        case 0x10: // LD
+        case 0x10: // LD: byte2=dst, byte1=addr_reg
+            ra = byte1 & 0x07;
+            rd = byte2 & 0x07;
             cpu.regs[rd] = cpu.ram[cpu.regs[ra] & 0xFF];
             break;
-        case 0x11: // ST
+        case 0x11: // ST: byte2=src, byte1=addr_reg
+            ra = byte1 & 0x07;
+            rb = byte2 & 0x07;
             cpu.ram[cpu.regs[ra] & 0xFF] = cpu.regs[rb];
             break;
-        case 0x12: // LDI
+        case 0x12: // LDI: byte2=dst, byte1=imm
+            rd = byte2 & 0x07;
             cpu.regs[rd] = imm;
             break;
         case 0x13: // MOV: byte2=dst, byte1=src
@@ -753,10 +758,12 @@ function executeOneInstruction() {
             return true;
 
         // ---- I/O ----
-        case 0x50: // IN
+        case 0x50: // IN: byte1=dst
+            rd = byte1 & 0x07;
             cpu.regs[rd] = cpu.input_port & 0xFF;
             break;
-        case 0x51: // OUT
+        case 0x51: // OUT: byte1=src
+            ra = byte1 & 0x07;
             cpu.output_val = cpu.regs[ra];
             cpu.output_active = true;
             cpuLog('out', `OUT R${ra} = 0x${cpu.regs[ra].toString(16).padStart(2,'0')}`);
