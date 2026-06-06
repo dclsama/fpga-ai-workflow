@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LEG Processor IDE</title>
+<style>
+/* ============================================================
+   LEG Processor GUI — Dark Theme Styles
+   ============================================================ */
+:root {
+    --bg: #1e1e2e;
+    --surface: #282840;
+    --surface2: #303050;
+    --border: #404070;
+    --text: #cdd6f4;
+    --text2: #a6adc8;
+    --accent: #89b4fa;
+    --green: #a6e3a1;
+    --red: #f38ba8;
+    --yellow: #f9e2af;
+    --orange: #fab387;
+    --blue: #89b4fa;
+    --purple: #cba6f7;
+    --gray: #6c7086;
+    --hl-line: #3a3a55;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: 'Consolas', 'Courier New', 'Microsoft YaHei', monospace;
+    background: var(--bg); color: var(--text);
+    height: 100vh; overflow: hidden;
+    display: flex; flex-direction: column;
+}
+
+/* ---- Toolbar ---- */
+.toolbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+.toolbar button {
+    padding: 6px 16px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--text);
+    cursor: pointer; font-family: inherit; font-size: 13px;
+    border-radius: 4px; transition: all 0.15s;
+}
+.toolbar button:hover { background: var(--border); }
+.toolbar button:active { background: var(--accent); color: var(--bg); }
+.toolbar button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: bold; }
+.toolbar button.run-btn { background: var(--green); color: var(--bg); border-color: var(--green); }
+.toolbar button.stop-btn { background: var(--red); color: var(--bg); border-color: var(--red); }
+.toolbar .sep { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
+.toolbar label { font-size: 12px; color: var(--text2); }
+.toolbar select, .toolbar input[type=range] {
+    background: var(--surface2); color: var(--text); border: 1px solid var(--border);
+    padding: 4px 8px; border-radius: 4px; font-family: inherit; font-size: 12px;
+}
+.toolbar .speed-val { color: var(--accent); font-size: 12px; min-width: 40px; text-align: center; }
+.toolbar .status { margin-left: auto; font-size: 12px; padding: 4px 12px; border-radius: 4px; }
+.toolbar .status.ok { color: var(--green); }
+.toolbar .status.err { color: var(--red); }
+.toolbar .status.run { color: var(--yellow); }
+
+/* ---- Main Layout ---- */
+.main {
+    display: flex; flex: 1; overflow: hidden;
+}
+.panel {
+    display: flex; flex-direction: column;
+    border-right: 1px solid var(--border);
+}
+.panel:last-child { border-right: none; }
+.panel-title {
+    padding: 6px 12px; background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px; font-weight: bold; color: var(--accent);
+    text-transform: uppercase; letter-spacing: 1px;
+    flex-shrink: 0;
+}
+.panel-content { flex: 1; overflow: auto; padding: 8px; }
+
+/* ---- Editor Panel (left) ---- */
+.editor-panel { flex: 4; }
+.editor-wrap {
+    flex: 1; display: flex; overflow: hidden;
+    position: relative;
+}
+.line-numbers {
+    width: 40px; background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 10px 0; overflow: hidden;
+    text-align: right; font-size: 13px; line-height: 1.5;
+    color: var(--gray); user-select: none; flex-shrink: 0;
+}
+.line-numbers div { padding-right: 8px; }
+.line-numbers div.exec { color: var(--yellow); background: var(--hl-line); font-weight: bold; }
+#editor {
+    flex: 1; background: var(--bg); color: var(--text);
+    border: none; padding: 10px 12px; font-family: inherit;
+    font-size: 13px; line-height: 1.5; resize: none; outline: none;
+    tab-size: 4;
+}
+.error-mark { background: rgba(243, 139, 168, 0.2); }
+
+/* ---- Machine Code Panel (center) ---- */
+.mcode-panel { flex: 2; }
+.mcode-content { font-size: 12px; line-height: 1.8; font-family: inherit; }
+.mcode-line { padding: 1px 4px; border-radius: 2px; }
+.mcode-line.exec { background: var(--hl-line); color: var(--yellow); }
+
+/* ---- State Panel (right) ---- */
+.state-panel { flex: 2; }
+.state-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; font-size: 13px; }
+.state-grid .reg-name { color: var(--blue); }
+.state-grid .reg-val { color: var(--green); text-align: right; font-weight: bold; }
+.state-grid .reg-val.changed { color: var(--yellow); animation: flash 0.5s; }
+@keyframes flash { 0%{opacity:0.3} 100%{opacity:1} }
+.flag-on { color: var(--green); font-weight: bold; }
+.flag-off { color: var(--gray); }
+
+/* ---- Bottom Panels ---- */
+.bottom {
+    display: flex; height: 180px; border-top: 1px solid var(--border); flex-shrink: 0;
+}
+.ram-panel { flex: 3; }
+.console-panel { flex: 5; }
+.ram-content {
+    display: grid;
+    grid-template-columns: repeat(16, 1fr);
+    gap: 1px; font-size: 11px; line-height: 1.6;
+}
+.ram-byte { text-align: center; color: var(--text2); }
+.ram-byte.written { color: var(--yellow); font-weight: bold; }
+.ram-byte.changed { background: rgba(249, 226, 175, 0.15); }
+.console-content { font-size: 12px; line-height: 1.6; }
+.console-line { padding: 1px 0; }
+.console-line.out { color: var(--green); }
+.console-line.err { color: var(--red); }
+.console-line.info { color: var(--text2); }
+.console-line.halt { color: var(--yellow); font-weight: bold; }
+
+/* ---- Input Port ---- */
+.input-port {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 12px; background: var(--surface); border-bottom: 1px solid var(--border);
+}
+.input-port label { font-size: 11px; color: var(--text2); }
+.input-port input {
+    background: var(--bg); color: var(--accent); border: 1px solid var(--border);
+    padding: 2px 8px; font-family: inherit; font-size: 12px; width: 60px;
+    border-radius: 3px;
+}
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gray); }
+
+/* ---- Highlight current instruction in editor ---- */
+#editor::selection { background: var(--accent); color: var(--bg); }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     Toolbar
+     ============================================================ -->
+<div class="toolbar">
+    <button class="primary" onclick="assemble()" title="Assemble code to machine code">&#x2699; Assemble</button>
+    <span class="sep"></span>
+    <button onclick="stepExecute()" title="Execute one instruction">&#x25B6; Step</button>
+    <button class="run-btn" id="btnRun" onclick="runExecute()" title="Run until HALT">&#x23F5; Run</button>
+    <button class="stop-btn" id="btnStop" onclick="stopExecution()" style="display:none">&#x23F9; Stop</button>
+    <button onclick="resetSim()" title="Reset processor state">&#x21BA; Reset</button>
+    <span class="sep"></span>
+    <label>Speed:</label>
+    <input type="range" id="speedSlider" min="1" max="100" value="50" oninput="updateSpeed()">
+    <span class="speed-val" id="speedVal">50 ms</span>
+    <span class="sep"></span>
+    <span class="status ok" id="statusBar">Ready. Write LEG assembly and click Assemble.</span>
+</div>
+
+<!-- ============================================================
+     Input Port
+     ============================================================ -->
+<div class="input-port">
+    <label>INPUT Port (for IN instruction):</label>
+    <input type="text" id="inputPort" value="0x00" onchange="updateInputPort()">
+    <label style="color:var(--gray)">(hex, e.g. 0x42)</label>
+</div>
+
+<!-- ============================================================
+     Main Panels: Editor | Machine Code | State
+     ============================================================ -->
+<div class="main">
+    <!-- Editor -->
+    <div class="panel editor-panel">
+        <div class="panel-title">&#x1F4DD; Assembly Editor</div>
+        <div class="editor-wrap">
+            <div class="line-numbers" id="lineNumbers"><div>1</div></div>
+            <textarea id="editor" spellcheck="false" placeholder="; Write LEG assembly here...&#10;&#10;LDI R0, 0x42&#10;OUT R0&#10;ADDI R0, 0x01&#10;OUT R0&#10;HALT" oninput="updateLineNumbers()" onscroll="syncScroll()"></textarea>
+        </div>
+    </div>
+
+    <!-- Machine Code -->
+    <div class="panel mcode-panel">
+        <div class="panel-title">&#x1F4BE; Machine Code</div>
+        <div class="panel-content mcode-content" id="mcodeView">
+            <span style="color:var(--gray)">Assemble code to see machine code...</span>
+        </div>
+    </div>
+
+    <!-- State -->
+    <div class="panel state-panel">
+        <div class="panel-title">&#x1F9E0; Processor State</div>
+        <div class="panel-content">
+            <div class="state-grid" id="stateView">
+                <!-- Registers -->
+                <span class="reg-name">R0</span><span class="reg-val" id="reg0">0x00</span>
+                <span class="reg-name">R1</span><span class="reg-val" id="reg1">0x00</span>
+                <span class="reg-name">R2</span><span class="reg-val" id="reg2">0x00</span>
+                <span class="reg-name">R3</span><span class="reg-val" id="reg3">0x00</span>
+                <span class="reg-name">R4</span><span class="reg-val" id="reg4">0x00</span>
+                <span class="reg-name">R5</span><span class="reg-val" id="reg5">0x00</span>
+                <!-- Special -->
+                <span class="reg-name" style="color:var(--purple)">PC</span><span class="reg-val" id="regPC" style="color:var(--purple)">0x00</span>
+                <span class="reg-name" style="color:var(--purple)">SP</span><span class="reg-val" id="regSP" style="color:var(--purple)">0x00</span>
+                <span class="reg-name">Flags</span><span class="reg-val">
+                    <span id="flagZ" class="flag-off">Z=0</span>
+                    <span id="flagC" class="flag-off">C=0</span>
+                </span>
+                <span class="reg-name">Status</span><span class="reg-val" id="cpuStatus" style="color:var(--gray)">IDLE</span>
+            </div>
+            <div style="margin-top:12px; font-size:11px; color:var(--text2);">
+                <div>Stack depth: <span id="stackDepth" style="color:var(--accent)">0</span></div>
+                <div>Stack top: <span id="stackTop" style="color:var(--accent);font-weight:bold">--</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================
+     Bottom: RAM View | Output Console
+     ============================================================ -->
+<div class="bottom">
+    <!-- RAM -->
+    <div class="panel ram-panel">
+        <div class="panel-title">&#x1F5C4; RAM (first 128 bytes)</div>
+        <div class="panel-content">
+            <div class="ram-content" id="ramView"></div>
+        </div>
+    </div>
+
+    <!-- Console -->
+    <div class="panel console-panel">
+        <div class="panel-title">&#x1F4AC; Output Console</div>
+        <div class="panel-content console-content" id="consoleView">
+            <div class="console-line info">LEG Processor IDE ready.</div>
+            <div class="console-line info">Write assembly code, click Assemble, then Step or Run.</div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================
+     JavaScript: Assembler + Simulator + UI
+     ============================================================ -->
+<script>
+// =========================================================================
+// LEG Processor State
+// =========================================================================
+const DATA_WIDTH = 8;
+const ADDR_WIDTH = 8;
+
+let cpu = {
+    regs: new Array(6).fill(0),     // R0-R5
+    pc: 0,                           // Program Counter
+    sp: 0,                           // Stack Pointer
+    flag_z: false,
+    flag_c: false,
+    halted: false,
+    ram: new Array(256).fill(0),
+    stack_mem: new Array(256).fill(0),
+    program: new Array(256).fill(0), // Machine code bytes
+    program_len: 0,
+    input_port: 0,
+    output_val: 0,
+    output_active: false,
+    exec_count: 0,
+};
+
+// =========================================================================
+// Assembler
+// =========================================================================
+const OPCODES = {
+    'ADD':0x00,'SUB':0x01,'AND':0x02,'OR':0x03,'NOT':0x04,
+    'XOR':0x05,'SHL':0x06,'SHR':0x07,
+    'ADDI':0x08,'SUBI':0x09,'ANDI':0x0A,'ORI':0x0B,
+    'XORI':0x0C,'SHLI':0x0D,'SHRI':0x0E,'CMPI':0x0F,
+    'LD':0x10,'ST':0x11,'LDI':0x12,'MOV':0x13,
+    'PUSH':0x20,'POP':0x21,
+    'JMP':0x30,'JZ':0x31,'JNZ':0x32,'JC':0x33,
+    'CALL':0x34,'RET':0x35,'HALT':0x36,
+    'IN':0x50,'OUT':0x51,'OUTI':0x52,
+};
+
+// Instructions that need 3 register operands (Rd, Ra, Rb)
+const ALU_REG3 = new Set(['ADD','SUB','AND','OR','XOR','SHL','SHR']);
+// Instructions that need 2 register operands (Rd, Ra) — NOT
+const ALU_REG2 = new Set(['NOT']);
+// Instructions that need Rd, imm (immediate ALU)
+const ALU_IMM = new Set(['ADDI','SUBI','ANDI','ORI','XORI','SHLI','SHRI','CMPI']);
+// Instructions with Rd, Rs
+const REG_MOV = new Set(['MOV','LD']);
+// Instructions with Rs only
+const REG_SRC = new Set(['ST','PUSH','OUT']);
+// Instructions with Rd only
+const REG_DST = new Set(['POP','IN','LDI']);
+// Instructions with Rd, Rs, Rt (3 regs for ALU)
+const REG_ALU3 = new Set(['ADD','SUB','AND','OR','XOR','SHL','SHR']);
+
+function parseRegister(s) {
+    s = s.trim().toUpperCase();
+    if (/^R[0-5]$/.test(s)) return parseInt(s[1]);
+    return null;
+}
+
+function parseImmediate(s) {
+    s = s.trim();
+    if (s.startsWith('0x') || s.startsWith('0X')) {
+        return parseInt(s, 16);
+    } else if (s.startsWith('0b') || s.startsWith('0B')) {
+        return parseInt(s.substring(2), 2);
+    } else if (/^\d+$/.test(s)) {
+        return parseInt(s, 10);
+    }
+    return null;
+}
+
+function assembleLine(line, lineNum, labels, pendingLabels) {
+    // Remove comment
+    let commentIdx = line.indexOf(';');
+    if (commentIdx >= 0) line = line.substring(0, commentIdx);
+    line = line.trim();
+    if (!line) return { bytes: [], isLabel: false };
+
+    // Check for label
+    let labelMatch = line.match(/^(\w+):/);
+    if (labelMatch) {
+        let label = labelMatch[1].toLowerCase();
+        labels[label] = -1; // placeholder, will be resolved
+        line = line.substring(labelMatch[0].length).trim();
+        if (!line) return { bytes: [], isLabel: true, labelName: label };
+    }
+
+    // Parse mnemonic and operands
+    let parts = line.split(/[\s,]+/).filter(p => p.length > 0);
+    if (parts.length === 0) return { bytes: [], isLabel: false };
+
+    let mnemonic = parts[0].toUpperCase();
+    if (!(mnemonic in OPCODES)) {
+        throw new Error(`Line ${lineNum}: Unknown instruction "${mnemonic}"`);
+    }
+
+    let opcode = OPCODES[mnemonic];
+    let bytes = [opcode, 0, 0, 0]; // [opcode, byte1, byte2, byte3]
+    let isLabel = false;
+
+    function getReg(idx) {
+        if (idx >= parts.length) throw new Error(`Line ${lineNum}: Missing operand for ${mnemonic}`);
+        let r = parseRegister(parts[idx]);
+        if (r === null) throw new Error(`Line ${lineNum}: Expected register, got "${parts[idx]}"`);
+        return r;
+    }
+
+    function getImm(idx) {
+        if (idx >= parts.length) throw new Error(`Line ${lineNum}: Missing immediate for ${mnemonic}`);
+        let v = parseImmediate(parts[idx]);
+        if (v === null) {
+            // Maybe it's a label reference
+            let lbl = parts[idx].toLowerCase();
+            if (lbl in labels) {
+                pendingLabels.push({ lineNum, byteIdx: 1, label: lbl, instrAddr: -1 });
+                return 0;
+            }
+            throw new Error(`Line ${lineNum}: Expected immediate or label, got "${parts[idx]}"`);
+        }
+        if (v < 0 || v > 255) throw new Error(`Line ${lineNum}: Immediate ${v} out of range (0-255)`);
+        return v & 0xFF;
+    }
+
+    if (mnemonic === 'HALT' || mnemonic === 'RET') {
+        // No operands
+    } else if (mnemonic === 'JMP' || mnemonic === 'JZ' || mnemonic === 'JNZ' || mnemonic === 'JC' || mnemonic === 'CALL') {
+        // Jump with label or immediate target
+        if (parts.length >= 2) {
+            let target = parts[1];
+            let addr = parseImmediate(target);
+            if (addr === null) {
+                let lbl = target.toLowerCase();
+                pendingLabels.push({ lineNum, byteIdx: 1, label: lbl, instrAddr: -1 });
+                bytes[1] = 0;
+            } else {
+                bytes[1] = addr & 0xFF;
+            }
+        }
+    } else if (ALU_REG3.has(mnemonic)) {
+        // Rd, Ra, Rb  → byte3=dst, byte1=srcA, byte2=srcB
+        let rd = getReg(1);
+        let ra = getReg(2);
+        let rb = getReg(3);
+        bytes[1] = ra;
+        bytes[2] = rb;
+        bytes[3] = rd;
+    } else if (mnemonic === 'NOT') {
+        // Rd, Ra  → byte2=dst, byte1=src
+        let rd = getReg(1);
+        let ra = getReg(2);
+        bytes[1] = ra;
+        bytes[2] = rd;
+    } else if (ALU_IMM.has(mnemonic)) {
+        // Rd, imm  → byte2=dst, byte1=imm
+        let rd = getReg(1);
+        let imm = getImm(2);
+        bytes[1] = imm;
+        bytes[2] = rd;
+    } else if (mnemonic === 'MOV') {
+        // Rd, Rs  → byte2=dst, byte1=src
+        let rd = getReg(1);
+        let rs = getReg(2);
+        bytes[1] = rs;
+        bytes[2] = rd;
+    } else if (mnemonic === 'LD') {
+        // Rd, [Rs]  → byte2=dst, byte1=addr_reg
+        let rd = getReg(1);
+        let rs = getReg(2);
+        bytes[1] = rs;
+        bytes[2] = rd;
+    } else if (mnemonic === 'ST') {
+        // [Rs], Rd  → byte2=src, byte1=addr_reg
+        let rs = getReg(1);
+        let rd = getReg(2);
+        bytes[1] = rs;
+        bytes[2] = rd;
+    } else if (mnemonic === 'LDI') {
+        // Rd, imm  → byte2=dst, byte1=imm
+        let rd = getReg(1);
+        let imm = getImm(2);
+        bytes[1] = imm;
+        bytes[2] = rd;
+    } else if (mnemonic === 'PUSH') {
+        let rs = getReg(1);
+        bytes[1] = rs;
+    } else if (mnemonic === 'POP') {
+        let rd = getReg(1);
+        bytes[1] = rd;
+    } else if (mnemonic === 'IN') {
+        let rd = getReg(1);
+        bytes[1] = rd;
+    } else if (mnemonic === 'OUT') {
+        let rs = getReg(1);
+        bytes[1] = rs;
+    } else if (mnemonic === 'OUTI') {
+        let imm = getImm(1);
+        bytes[1] = imm;
+    }
+
+    return { bytes, isLabel, labelName: null };
+}
+
+function assemble() {
+    let text = document.getElementById('editor').value;
+    let lines = text.split('\n');
+    let allBytes = [];
+    let lineMap = []; // lineMap[byte_addr] = line_index
+    let errors = [];
+    let labels = {};
+    let pendingLabels = [];
+
+    // First pass: assemble lines, collect labels
+    for (let i = 0; i < lines.length; i++) {
+        let line = lines[i];
+        let commentIdx = line.indexOf(';');
+        if (commentIdx >= 0) line = line.substring(0, commentIdx);
+        line = line.trim();
+        if (!line) continue;
+
+        // Handle label-only lines
+        let labelMatch = line.match(/^(\w+):\s*$/);
+        if (labelMatch) {
+            labels[labelMatch[1].toLowerCase()] = allBytes.length;
+            continue;
+        }
+
+        // Handle label + instruction on same line
+        labelMatch = line.match(/^(\w+):/);
+        if (labelMatch) {
+            labels[labelMatch[1].toLowerCase()] = allBytes.length;
+            line = line.substring(labelMatch[0].length).trim();
+            if (!line) continue;
+        }
+
+        try {
+            let result = assembleLine(line, i + 1, labels, pendingLabels);
+            if (result.bytes.length === 4) {
+                for (let b of result.bytes) {
+                    lineMap.push(i);
+                }
+                allBytes.push(...result.bytes);
+            }
+        } catch (e) {
+            errors.push(e.message);
+        }
+    }
+
+    // Resolve pending labels
+    for (let p of pendingLabels) {
+        let addr = labels[p.label];
+        if (addr === undefined || addr === -1) {
+            errors.push(`Line ${p.lineNum}: Undefined label "${p.label}"`);
+        } else {
+            // Find the instruction that needs this label reference
+            // We need to find the right position in allBytes
+            // For now, resolve using a simple approach
+            let instrAddr = p.instrAddr;
+            if (instrAddr >= 0 && instrAddr + p.byteIdx < allBytes.length) {
+                allBytes[instrAddr + p.byteIdx] = addr & 0xFF;
+            }
+        }
+    }
+
+    // Second pass to resolve pending labels (simpler approach)
+    if (pendingLabels.length > 0 && errors.length === 0) {
+        // Re-assemble with known labels
+        allBytes = [];
+        lineMap = [];
+        for (let i = 0; i < lines.length; i++) {
+            let line = lines[i];
+            let commentIdx = line.indexOf(';');
+            if (commentIdx >= 0) line = line.substring(0, commentIdx);
+            line = line.trim();
+            if (!line) continue;
+            let labelMatch = line.match(/^(\w+):/);
+            if (labelMatch) {
+                line = line.substring(labelMatch[0].length).trim();
+                if (!line) continue;
+            }
+            try {
+                let result = assembleLine(line, i + 1, labels, []);
+                if (result.bytes.length === 4) {
+                    // Check if this is a jump and resolve label
+                    let parts = line.split(/[\s,]+/).filter(p => p.length > 0);
+                    if (parts.length >= 2) {
+                        let mnemonic = parts[0].toUpperCase();
+                        let jumpSet = new Set(['JMP','JZ','JNZ','JC','CALL']);
+                        if (jumpSet.has(mnemonic)) {
+                            let target = parts[1];
+                            let lbl = target.toLowerCase();
+                            if (lbl in labels && labels[lbl] !== undefined) {
+                                result.bytes[1] = labels[lbl] & 0xFF;
+                            }
+                        }
+                    }
+                    for (let b of result.bytes) {
+                        lineMap.push(i);
+                    }
+                    allBytes.push(...result.bytes);
+                }
+            } catch (e) {
+                errors.push(e.message);
+            }
+        }
+    }
+
+    // Update CPU program memory
+    cpu.program.fill(0);
+    for (let i = 0; i < Math.min(allBytes.length, 256); i++) {
+        cpu.program[i] = allBytes[i];
+    }
+    cpu.program_len = Math.min(allBytes.length, 256);
+
+    // Update UI
+    updateMachineCodeView(lineMap);
+    updateStatus(errors);
+    resetSim();
+
+    return errors.length === 0;
+}
+
+// =========================================================================
+// Simulator
+// =========================================================================
+
+function getInstruction(pc) {
+    if (pc + 3 >= 256) return 0;
+    let byte0 = cpu.program[pc];
+    let byte1 = cpu.program[pc + 1];
+    let byte2 = cpu.program[pc + 2];
+    let byte3 = cpu.program[pc + 3];
+    return { opcode: byte0, byte1, byte2, byte3 };
+}
+
+function aluOp(op, a, b) {
+    let result, z, c;
+    switch (op) {
+        case 0: // ADD
+            result = (a + b) & 0xFF;
+            c = (a + b) > 255;
+            z = (result === 0);
+            return { result, z, c };
+        case 1: // SUB
+            result = (a - b) & 0xFF;
+            c = (a < b);  // borrow
+            z = (result === 0);
+            return { result, z, c };
+        case 2: // AND
+            result = a & b; z = (result === 0); c = false;
+            return { result, z, c };
+        case 3: // OR
+            result = a | b; z = (result === 0); c = false;
+            return { result, z, c };
+        case 4: // NOT
+            result = (~a) & 0xFF; z = (result === 0); c = false;
+            return { result, z, c };
+        case 5: // XOR
+            result = a ^ b; z = (result === 0); c = false;
+            return { result, z, c };
+        case 6: // SHL
+            result = (a << (b & 0x07)) & 0xFF; z = (result === 0); c = false;
+            return { result, z, c };
+        case 7: // SHR
+            result = (a >> (b & 0x07)) & 0xFF; z = (result === 0); c = false;
+            return { result, z, c };
+        default:
+            return { result: 0, z: true, c: false };
+    }
+}
+
+function executeOneInstruction() {
+    if (cpu.halted) {
+        cpuLog('info', `Cannot execute: processor is halted.`);
+        return false;
+    }
+    if (cpu.program_len === 0) {
+        cpuLog('err', `No program loaded. Assemble code first.`);
+        return false;
+    }
+    if (cpu.pc >= cpu.program_len) {
+        cpuLog('err', `PC=0x${cpu.pc.toString(16)} out of program bounds.`);
+        cpu.halted = true;
+        return false;
+    }
+
+    let inst = getInstruction(cpu.pc);
+    let opcode = inst.opcode;
+    let byte1 = inst.byte1;
+    let byte2 = inst.byte2;
+    let byte3 = inst.byte3;
+    let pc_before = cpu.pc;
+    let jump = false;
+    let jump_target = 0;
+
+    // Get operands
+    let ra = byte1 & 0x07;
+    let rb = byte2 & 0x07;
+    let rd = byte3 & 0x07;
+    if (opcode === 0x04) { rd = byte2 & 0x07; } // NOT: dst is byte2
+    let imm = byte1;
+    let alu_op = 0;
+    let imm_sel = false;
+
+    // Flag update enable (bit 3 of byte3 for ALU reg-reg)
+    let flag_upd = (byte3 & 0x08) !== 0;
+
+    cpu.output_active = false;
+
+    switch (opcode) {
+        // ---- ALU Reg-Reg ----
+        case 0x00: alu_op = 0; break;
+        case 0x01: alu_op = 1; break;
+        case 0x02: alu_op = 2; break;
+        case 0x03: alu_op = 3; break;
+        case 0x04: alu_op = 4; break; // NOT
+        case 0x05: alu_op = 5; break;
+        case 0x06: alu_op = 6; break;
+        case 0x07: alu_op = 7; break;
+
+        // ---- ALU Immediate ----
+        case 0x08: alu_op = 0; imm_sel = true; flag_upd = true; break; // ADDI
+        case 0x09: alu_op = 1; imm_sel = true; flag_upd = true; break; // SUBI
+        case 0x0A: alu_op = 2; imm_sel = true; flag_upd = true; break; // ANDI
+        case 0x0B: alu_op = 3; imm_sel = true; flag_upd = true; break; // ORI
+        case 0x0C: alu_op = 5; imm_sel = true; flag_upd = true; break; // XORI
+        case 0x0D: alu_op = 6; imm_sel = true; flag_upd = true; break; // SHLI
+        case 0x0E: alu_op = 7; imm_sel = true; flag_upd = true; break; // SHRI
+        case 0x0F: alu_op = 1; imm_sel = true; flag_upd = true; break; // CMPI
+
+        // ---- Data Transfer ----
+        case 0x10: // LD
+            cpu.regs[rd] = cpu.ram[cpu.regs[ra] & 0xFF];
+            break;
+        case 0x11: // ST
+            cpu.ram[cpu.regs[ra] & 0xFF] = cpu.regs[rb];
+            break;
+        case 0x12: // LDI
+            cpu.regs[rd] = imm;
+            break;
+        case 0x13: // MOV: byte2=dst, byte1=src
+            rd = byte2 & 0x07;
+            ra = byte1 & 0x07;
+            cpu.regs[rd] = cpu.regs[ra];
+            break;
+
+        // ---- Stack ----
+        case 0x20: // PUSH
+            cpu.stack_mem[cpu.sp] = cpu.regs[ra];
+            cpu.sp = (cpu.sp + 1) & 0xFF;
+            break;
+        case 0x21: // POP
+            cpu.sp = (cpu.sp - 1) & 0xFF;
+            cpu.regs[ra] = cpu.stack_mem[cpu.sp];
+            break;
+
+        // ---- Control Flow ----
+        case 0x30: jump = true; jump_target = byte1; break; // JMP
+        case 0x31: jump = cpu.flag_z; jump_target = byte1; break; // JZ
+        case 0x32: jump = !cpu.flag_z; jump_target = byte1; break; // JNZ
+        case 0x33: jump = cpu.flag_c; jump_target = byte1; break; // JC
+        case 0x34: // CALL
+            cpu.stack_mem[cpu.sp] = (cpu.pc + 4) & 0xFF;
+            cpu.sp = (cpu.sp + 1) & 0xFF;
+            jump = true; jump_target = byte1;
+            break;
+        case 0x35: // RET
+            cpu.sp = (cpu.sp - 1) & 0xFF;
+            jump = true; jump_target = cpu.stack_mem[cpu.sp];
+            break;
+        case 0x36: // HALT
+            cpu.halted = true;
+            cpuLog('halt', `HALT at PC=0x${pc_before.toString(16).padStart(2,'0')}`);
+            cpu.pc += 4;
+            return true;
+
+        // ---- I/O ----
+        case 0x50: // IN
+            cpu.regs[rd] = cpu.input_port & 0xFF;
+            break;
+        case 0x51: // OUT
+            cpu.output_val = cpu.regs[ra];
+            cpu.output_active = true;
+            cpuLog('out', `OUT R${ra} = 0x${cpu.regs[ra].toString(16).padStart(2,'0')}`);
+            break;
+        case 0x52: // OUTI
+            cpu.output_val = imm;
+            cpu.output_active = true;
+            cpuLog('out', `OUTI 0x${imm.toString(16).padStart(2,'0')}`);
+            break;
+
+        default:
+            cpuLog('err', `Unknown opcode 0x${opcode.toString(16)} at PC=0x${pc_before.toString(16)}`);
+            cpu.halted = true;
+            return false;
+    }
+
+    // Execute ALU operation
+    if (opcode <= 0x0F) {
+        let a_val, b_val, dst_reg;
+
+        if (opcode <= 0x07) {
+            // Reg-Reg ALU
+            a_val = cpu.regs[ra];
+            b_val = cpu.regs[rb];
+            dst_reg = rd;
+            if (opcode === 0x04) { // NOT: special case
+                a_val = cpu.regs[ra];
+                b_val = 0;
+                dst_reg = byte2 & 0x07;
+            }
+        } else {
+            // Immediate ALU: byte2 = dst/src register
+            dst_reg = byte2 & 0x07;
+            a_val = cpu.regs[dst_reg];
+            b_val = imm;
+        }
+
+        let alu_result = aluOp(alu_op, a_val, b_val);
+
+        if (opcode !== 0x0F) { // CMPI doesn't write result
+            cpu.regs[dst_reg] = alu_result.result;
+        }
+        if (flag_upd) {
+            cpu.flag_z = alu_result.z;
+            cpu.flag_c = alu_result.c;
+        }
+    }
+
+    // Update PC
+    if (jump) {
+        cpu.pc = jump_target & 0xFF;
+    } else {
+        cpu.pc = (cpu.pc + 4) & 0xFF;
+    }
+
+    cpu.exec_count++;
+    return true;
+}
+
+// =========================================================================
+// UI Functions
+// =========================================================================
+
+function updateLineNumbers() {
+    let editor = document.getElementById('editor');
+    let lines = editor.value.split('\n');
+    let lnDiv = document.getElementById('lineNumbers');
+    let html = '';
+    for (let i = 0; i < lines.length; i++) {
+        html += `<div>${i + 1}</div>`;
+    }
+    lnDiv.innerHTML = html;
+}
+
+function syncScroll() {
+    let editor = document.getElementById('editor');
+    let lnDiv = document.getElementById('lineNumbers');
+    lnDiv.scrollTop = editor.scrollTop;
+}
+
+function updateMachineCodeView(lineMap) {
+    let view = document.getElementById('mcodeView');
+    if (cpu.program_len === 0) {
+        view.innerHTML = '<span style="color:var(--gray)">No machine code.</span>';
+        return;
+    }
+    let html = '<div style="display:grid;grid-template-columns:40px 1fr;gap:2px 8px">';
+    for (let addr = 0; addr < cpu.program_len; addr += 4) {
+        let b0 = cpu.program[addr];
+        let b1 = cpu.program[addr+1] || 0;
+        let b2 = cpu.program[addr+2] || 0;
+        let b3 = cpu.program[addr+3] || 0;
+        let lineNo = lineMap ? lineMap[addr] + 1 : (addr/4 + 1);
+        html += `<span style="color:var(--gray);text-align:right">${addr.toString(16).padStart(2,'0')}:</span>`;
+        html += `<span class="mcode-line" data-addr="${addr}">`;
+        html += `${b0.toString(16).padStart(2,'0')} ${b1.toString(16).padStart(2,'0')} `;
+        html += `${b2.toString(16).padStart(2,'0')} ${b3.toString(16).padStart(2,'0')}`;
+        html += `  <span style="color:var(--gray);font-size:10px">L${lineNo}</span>`;
+        html += `</span>`;
+    }
+    html += '</div>';
+    view.innerHTML = html;
+}
+
+function highlightExecution() {
+    let pc = cpu.pc;
+    // Highlight machine code line
+    let mcLines = document.querySelectorAll('.mcode-line');
+    mcLines.forEach(el => { el.classList.remove('exec'); });
+    let target = document.querySelector(`.mcode-line[data-addr="${pc}"]`);
+    if (target) {
+        target.classList.add('exec');
+        target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+
+    // Highlight editor line (approximation)
+    let lineMap = [];
+    let editor = document.getElementById('editor');
+    let lines = editor.value.split('\n');
+    let byteAddr = 0;
+    for (let i = 0; i < lines.length; i++) {
+        let line = lines[i].trim();
+        if (line && !line.startsWith(';')) {
+            let lblMatch = line.match(/^\w+:/);
+            if (lblMatch) { line = line.substring(lblMatch[0].length).trim(); }
+            if (line) {
+                for (let j = 0; j < 4; j++) {
+                    lineMap[byteAddr + j] = i;
+                }
+                byteAddr += 4;
+            }
+        }
+    }
+
+    let lnDivs = document.querySelectorAll('.line-numbers div');
+    lnDivs.forEach(d => d.classList.remove('exec'));
+    if (lineMap[pc] !== undefined) {
+        let lnIdx = lineMap[pc];
+        if (lnDivs[lnIdx]) {
+            lnDivs[lnIdx].classList.add('exec');
+            lnDivs[lnIdx].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+    }
+}
+
+function updateStateView() {
+    for (let i = 0; i < 6; i++) {
+        let el = document.getElementById('reg' + i);
+        el.textContent = '0x' + cpu.regs[i].toString(16).padStart(2, '0');
+    }
+    document.getElementById('regPC').textContent = '0x' + cpu.pc.toString(16).padStart(2, '0');
+    document.getElementById('regSP').textContent = '0x' + cpu.sp.toString(16).padStart(2, '0');
+    document.getElementById('flagZ').textContent = 'Z=' + (cpu.flag_z ? '1' : '0');
+    document.getElementById('flagZ').className = cpu.flag_z ? 'flag-on' : 'flag-off';
+    document.getElementById('flagC').textContent = 'C=' + (cpu.flag_c ? '1' : '0');
+    document.getElementById('flagC').className = cpu.flag_c ? 'flag-on' : 'flag-off';
+    document.getElementById('cpuStatus').textContent = cpu.halted ? 'HALTED' : 'RUNNING';
+    document.getElementById('cpuStatus').style.color = cpu.halted ? 'var(--red)' : 'var(--green)';
+    document.getElementById('stackDepth').textContent = cpu.sp;
+    if (cpu.sp > 0) {
+        document.getElementById('stackTop').textContent = '0x' + cpu.stack_mem[cpu.sp - 1].toString(16).padStart(2, '0');
+    } else {
+        document.getElementById('stackTop').textContent = '--';
+    }
+}
+
+function updateRamView() {
+    let view = document.getElementById('ramView');
+    let html = '';
+    for (let i = 0; i < 128; i++) {
+        let val = cpu.ram[i];
+        let cls = val !== 0 ? 'ram-byte written' : 'ram-byte';
+        html += `<span class="${cls}">${val.toString(16).padStart(2,'0')}</span>`;
+    }
+    view.innerHTML = html;
+}
+
+function cpuLog(type, msg) {
+    let view = document.getElementById('consoleView');
+    let cls = type === 'out' ? 'out' : (type === 'err' ? 'err' : (type === 'halt' ? 'halt' : 'info'));
+    let prefix = type === 'out' ? '[OUT]' : (type === 'err' ? '[ERR]' : (type === 'halt' ? '[HALT]' : '[INFO]'));
+    view.innerHTML += `<div class="console-line ${cls}">${prefix} ${msg}</div>`;
+    view.scrollTop = view.scrollHeight;
+}
+
+function updateStatus(errors) {
+    let status = document.getElementById('statusBar');
+    if (errors && errors.length > 0) {
+        status.textContent = 'Assemble errors: ' + errors.join('; ');
+        status.className = 'status err';
+    } else if (errors !== undefined) {
+        status.textContent = `Assembled ${cpu.program_len} bytes (${cpu.program_len/4} instructions). Ready.`;
+        status.className = 'status ok';
+    }
+}
+
+function updateInputPort() {
+    let val = document.getElementById('inputPort').value.trim();
+    cpu.input_port = parseImmediate(val) || 0;
+}
+
+// =========================================================================
+// Simulation Control
+// =========================================================================
+let runTimer = null;
+let runSpeed = 50;
+
+function stepExecute() {
+    if (cpu.halted && cpu.program_len > 0) {
+        cpuLog('err', 'Processor is halted. Click Reset to restart.');
+        return;
+    }
+    updateInputPort();
+    let ok = executeOneInstruction();
+    if (ok) {
+        updateStateView();
+        updateRamView();
+        highlightExecution();
+        if (cpu.halted) {
+            document.getElementById('statusBar').textContent =
+                `Halted after ${cpu.exec_count} instructions at PC=0x${cpu.pc.toString(16)}.`;
+            document.getElementById('statusBar').className = 'status err';
+        } else {
+            document.getElementById('statusBar').textContent =
+                `Executed ${cpu.exec_count} instruction(s). PC=0x${cpu.pc.toString(16).padStart(2,'0')}`;
+            document.getElementById('statusBar').className = 'status ok';
+        }
+    }
+}
+
+function runExecute() {
+    if (cpu.halted && cpu.program_len > 0) {
+        cpuLog('err', 'Processor is halted. Click Reset to restart.');
+        return;
+    }
+    if (cpu.program_len === 0) {
+        cpuLog('err', 'No program loaded. Assemble first.');
+        return;
+    }
+
+    document.getElementById('btnRun').style.display = 'none';
+    document.getElementById('btnStop').style.display = 'inline-block';
+    document.getElementById('statusBar').textContent = 'Running...';
+    document.getElementById('statusBar').className = 'status run';
+
+    updateInputPort();
+
+    function runStep() {
+        if (cpu.halted) {
+            stopExecution();
+            document.getElementById('statusBar').textContent =
+                `Halted after ${cpu.exec_count} instructions.`;
+            document.getElementById('statusBar').className = 'status err';
+            return;
+        }
+        let ok = executeOneInstruction();
+        updateStateView();
+        updateRamView();
+        highlightExecution();
+        if (ok && !cpu.halted) {
+            runTimer = setTimeout(runStep, runSpeed);
+        } else {
+            stopExecution();
+            if (cpu.halted) {
+                document.getElementById('statusBar').textContent =
+                    `Halted after ${cpu.exec_count} instructions.`;
+                document.getElementById('statusBar').className = 'status err';
+            }
+        }
+    }
+
+    runTimer = setTimeout(runStep, runSpeed);
+}
+
+function stopExecution() {
+    if (runTimer) {
+        clearTimeout(runTimer);
+        runTimer = null;
+    }
+    document.getElementById('btnRun').style.display = 'inline-block';
+    document.getElementById('btnStop').style.display = 'none';
+    document.getElementById('statusBar').className = 'status ok';
+    updateStateView();
+}
+
+function resetSim() {
+    stopExecution();
+    for (let i = 0; i < 6; i++) cpu.regs[i] = 0;
+    cpu.pc = 0;
+    cpu.sp = 0;
+    cpu.flag_z = false;
+    cpu.flag_c = false;
+    cpu.halted = false;
+    cpu.ram.fill(0);
+    cpu.stack_mem.fill(0);
+    cpu.output_val = 0;
+    cpu.output_active = false;
+    cpu.exec_count = 0;
+    updateInputPort();
+
+    updateStateView();
+    updateRamView();
+    updateMachineCodeView();
+    highlightExecution();
+
+    // Clear highlights
+    document.querySelectorAll('.mcode-line.exec').forEach(el => el.classList.remove('exec'));
+    document.querySelectorAll('.line-numbers div.exec').forEach(el => el.classList.remove('exec'));
+
+    document.getElementById('statusBar').textContent =
+        cpu.program_len > 0 ? `Reset. ${cpu.program_len/4} instructions ready.` : 'Reset. No program loaded.';
+    document.getElementById('statusBar').className = 'status ok';
+}
+
+function updateSpeed() {
+    runSpeed = parseInt(document.getElementById('speedSlider').value);
+    document.getElementById('speedVal').textContent = runSpeed + ' ms';
+}
+
+// =========================================================================
+// Initialization
+// =========================================================================
+document.addEventListener('DOMContentLoaded', function() {
+    updateLineNumbers();
+    updateRamView();
+    updateStateView();
+    updateInputPort();
+
+    // Load default example
+    let editor = document.getElementById('editor');
+    if (!editor.value.trim()) {
+        editor.value = `; LEG Processor Example Program
+; LDI -> OUT -> ADDI -> OUT -> HALT
+
+    LDI  R0, 0x42      ; Load 0x42 into R0
+    OUT  R0            ; Output R0 (0x42)
+    ADDI R0, 0x01      ; R0 = R0 + 1
+    OUT  R0            ; Output R0 (0x43)
+    HALT               ; Stop processor
+`;
+        updateLineNumbers();
+    }
+
+    // Keyboard shortcut: Ctrl+Enter to assemble
+    document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.key === 'Enter') {
+            e.preventDefault();
+            assemble();
+        }
+        if (e.key === 'F5' && !e.ctrlKey && !e.altKey) {
+            e.preventDefault();
+            runExecute();
+        }
+        if (e.key === 'F10') {
+            e.preventDefault();
+            stepExecute();
+        }
+    });
+});
+
+document.getElementById('editor').addEventListener('scroll', syncScroll);
+</script>
+
+</body>
+</html>
