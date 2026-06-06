@@ -59,9 +59,12 @@ SNAPSHOT="${MODULE}_tb"
 
 # ---- Helper: find RTL files --------------------------------------------------
 find_rtl_files() {
-    # Exclude template files (starting with _)
+    # Search recursively in rtl/ but exclude legacy LEG/ directory and templates
     local files
-    files=$(find "$RTL_DIR" -maxdepth 1 \( -name "*.v" -o -name "*.sv" \) ! -name "_*" 2>/dev/null | sort)
+    files=$(find "$RTL_DIR" \( -name "*.v" -o -name "*.sv" \) \
+        ! -path "$RTL_DIR/LEG/*" \
+        ! -name "_*" \
+        2>/dev/null | sort)
     if [ -z "$files" ]; then
         echo "WARNING: No RTL files found in $RTL_DIR/"
         echo "  Make sure your Verilog source files are in the rtl/ directory."
@@ -71,19 +74,22 @@ find_rtl_files() {
 
 # ---- Helper: find TB files ---------------------------------------------------
 find_tb_files() {
-    # Look for the specific testbench matching the module name
-    local tb_file="$TB_DIR/${MODULE}_tb.sv"
-    if [ -f "$tb_file" ]; then
-        echo "$tb_file"
-        return
-    fi
-    tb_file="$TB_DIR/${MODULE}_tb.v"
-    if [ -f "$tb_file" ]; then
-        echo "$tb_file"
-        return
-    fi
-    echo "ERROR: Testbench not found: $TB_DIR/${MODULE}_tb.sv or ${MODULE}_tb.v"
-    echo "  Create a testbench at tb/${MODULE}_tb.sv"
+    # Search for testbench in tb/ and subdirectories
+    local tb_file
+    for search_dir in "$TB_DIR" "$TB_DIR/leg_lib" "$TB_DIR/leg"; do
+        tb_file="$search_dir/${MODULE}_tb.sv"
+        if [ -f "$tb_file" ]; then
+            echo "$tb_file"
+            return
+        fi
+        tb_file="$search_dir/${MODULE}_tb.v"
+        if [ -f "$tb_file" ]; then
+            echo "$tb_file"
+            return
+        fi
+    done
+    echo "ERROR: Testbench not found: ${MODULE}_tb.sv"
+    echo "  Looked in: tb/, tb/leg_lib/, tb/leg/"
     return 1
 }
 
