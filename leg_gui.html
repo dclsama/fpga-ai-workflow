@@ -180,6 +180,14 @@ body {
     <input type="range" id="speedSlider" min="1" max="100" value="50" oninput="updateSpeed()">
     <span class="speed-val" id="speedVal">50 ms</span>
     <span class="sep"></span>
+    <label>Demo:</label>
+    <select id="demoSelect" onchange="loadDemo(this.value)">
+        <option value="">-- Select Demo --</option>
+        <option value="fibonacci">1. Fibonacci Sequence</option>
+        <option value="arithmetic">2. Arithmetic All-Ops</option>
+        <option value="gcd">3. GCD Algorithm</option>
+    </select>
+    <span class="sep"></span>
     <span class="status ok" id="statusBar">Ready. Write LEG assembly and click Assemble.</span>
 </div>
 
@@ -407,19 +415,20 @@ function assembleLine(line, lineNum, labels, pendingLabels) {
             }
         }
     } else if (ALU_REG3.has(mnemonic)) {
-        // Rd, Ra, Rb  → byte3=dst, byte1=srcA, byte2=srcB
+        // Rd, Ra, Rb  → byte3={flag_upd=1, dst}, byte1=srcA, byte2=srcB
         let rd = getReg(1);
         let ra = getReg(2);
         let rb = getReg(3);
         bytes[1] = ra;
         bytes[2] = rb;
-        bytes[3] = rd;
+        bytes[3] = rd | 0x08;  // Always update flags for ALU ops
     } else if (mnemonic === 'NOT') {
-        // Rd, Ra  → byte2=dst, byte1=src
+        // Rd, Ra  → byte2=dst, byte1=src, byte3[3]=flag_upd
         let rd = getReg(1);
         let ra = getReg(2);
         bytes[1] = ra;
         bytes[2] = rd;
+        bytes[3] = 0x08;  // Update flags for NOT
     } else if (ALU_IMM.has(mnemonic)) {
         // Rd, imm  → byte2=dst, byte1=imm
         let rd = getReg(1);
@@ -1065,6 +1074,164 @@ function resetSim() {
 function updateSpeed() {
     runSpeed = parseInt(document.getElementById('speedSlider').value);
     document.getElementById('speedVal').textContent = runSpeed + ' ms';
+}
+
+// =========================================================================
+// Demo Programs
+// =========================================================================
+const DEMOS = {
+    fibonacci: {
+        name: 'Fibonacci Sequence',
+        code: `; ============================================================
+; Demo 1: Fibonacci Sequence (14 terms)
+; Output: 0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233
+; Method: Loop counter (R3) decrements from 12 to 0
+; ============================================================
+
+    LDI  R0, 0          ; F(0) = 0
+    OUT  R0             ; Output 0
+
+    LDI  R1, 1          ; F(1) = 1
+    OUT  R1             ; Output 1
+
+    LDI  R3, 12         ; Counter: 12 remaining terms
+
+fib_loop:
+    ADD  R2, R0, R1     ; R2 = F(n) = F(n-2) + F(n-1)
+    OUT  R2             ; Output Fibonacci number
+
+    MOV  R0, R1         ; Shift: F(n-2) = F(n-1)
+    MOV  R1, R2         ; F(n-1) = F(n)
+
+    SUBI R3, 1          ; Decrement counter, update flags
+    JNZ  fib_loop       ; Continue if counter != 0
+
+    HALT`,
+        description: 'Outputs Fibonacci: 0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233'
+    },
+
+    arithmetic: {
+        name: 'Arithmetic All-Ops',
+        code: `; ============================================================
+; Demo 2: Arithmetic All-Ops Demo
+; Demonstrates all 8 ALU operations with expected results
+; Each operation: compute, then OUT the result
+; ============================================================
+
+    ; ---- ADD: 10 + 20 = 30 (0x1E) ----
+    LDI  R0, 10
+    LDI  R1, 20
+    ADD  R2, R0, R1
+    OUT  R2             ; Output: 0x1E (30)
+
+    ; ---- SUB: 50 - 15 = 35 (0x23) ----
+    LDI  R0, 50
+    LDI  R1, 15
+    SUB  R2, R0, R1
+    OUT  R2             ; Output: 0x23 (35)
+
+    ; ---- AND: 0xFF & 0x0F = 0x0F ----
+    LDI  R0, 0xFF
+    LDI  R1, 0x0F
+    AND  R2, R0, R1
+    OUT  R2             ; Output: 0x0F
+
+    ; ---- OR: 0xF0 | 0x0F = 0xFF ----
+    LDI  R0, 0xF0
+    LDI  R1, 0x0F
+    OR   R2, R0, R1
+    OUT  R2             ; Output: 0xFF
+
+    ; ---- NOT: ~0x0F = 0xF0 ----
+    LDI  R0, 0x0F
+    NOT  R2, R0
+    OUT  R2             ; Output: 0xF0
+
+    ; ---- XOR: 0xAA ^ 0x55 = 0xFF ----
+    LDI  R0, 0xAA
+    LDI  R1, 0x55
+    XOR  R2, R0, R1
+    OUT  R2             ; Output: 0xFF
+
+    ; ---- SHL: 0x01 << 3 = 0x08 ----
+    LDI  R0, 0x01
+    LDI  R1, 3
+    SHL  R2, R0, R1
+    OUT  R2             ; Output: 0x08
+
+    ; ---- SHR: 0x80 >> 3 = 0x10 ----
+    LDI  R0, 0x80
+    LDI  R1, 3
+    SHR  R2, R0, R1
+    OUT  R2             ; Output: 0x10
+
+    HALT`,
+        description: 'Demo all 8 ALU ops: ADD, SUB, AND, OR, NOT, XOR, SHL, SHR'
+    },
+
+    gcd: {
+        name: 'GCD Algorithm',
+        code: `; ============================================================
+; Demo 3: GCD — Euclidean by Repeated Subtraction
+; Computes GCD(48, 18) = 6
+; ============================================================
+; Registers:
+;   R0 = a, R1 = b, R2 = temp (a-b or b-a)
+; Algorithm:
+;   while a != b:
+;     if a > b: a = a - b
+;     else:     b = b - a
+;   output a (or b, they are equal)
+; ============================================================
+
+    LDI  R0, 48         ; a = 48
+    LDI  R1, 18         ; b = 18
+
+gcd_loop:
+    SUB  R2, R0, R1     ; R2 = a - b, Z=1 if equal, C=1 if a < b
+    JZ   gcd_done       ; a == b → found GCD
+
+    JC   b_is_larger    ; a < b → b is larger
+
+    ; a > b: a = a - b
+    MOV  R0, R2
+    JMP  gcd_loop
+
+b_is_larger:
+    ; b > a: b = b - a
+    SUB  R2, R1, R0     ; R2 = b - a
+    MOV  R1, R2
+    JMP  gcd_loop
+
+gcd_done:
+    OUT  R0             ; Output GCD = 6
+    HALT`,
+        description: 'Computes GCD(48, 18) = 6 using Euclidean subtraction method'
+    }
+};
+
+function loadDemo(name) {
+    if (!name) return;
+    let demo = DEMOS[name];
+    if (!demo) return;
+
+    let editor = document.getElementById('editor');
+    editor.value = demo.code;
+    updateLineNumbers();
+    resetSim();
+
+    // Clear console
+    document.getElementById('consoleView').innerHTML =
+        `<div class="console-line info">Loaded demo: ${demo.name}</div>` +
+        `<div class="console-line info">${demo.description}</div>` +
+        `<div class="console-line info">Click Assemble, then Step or Run.</div>`;
+
+    document.getElementById('statusBar').textContent =
+        `Loaded: ${demo.name}. Click Assemble to compile.`;
+    document.getElementById('statusBar').className = 'status ok';
+
+    // Reset dropdown
+    document.getElementById('demoSelect').value = '';
 }
 
 // =========================================================================
