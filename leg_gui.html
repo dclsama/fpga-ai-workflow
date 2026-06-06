@@ -1175,10 +1175,8 @@ fib_loop:
 ; Demo 3: GCD — Euclidean by Repeated Subtraction
 ; Computes GCD(48, 18) = 6
 ; ============================================================
-; Registers: R0=a, R1=b, R2=temp
-; Key insight: after SUB a-b, bit 7 of result tells
-;   if a<b (bit7=1, borrow) vs a>=b (bit7=0)
-; We extract bit7 via ANDI+SHRI, then CMPI+JZ
+; R0=a, R1=b, R2=a-b, R3=temp for bit test
+; a>=b: a=a-b.  a<b: b=b-a.  a==b: done
 ; ============================================================
 
     LDI  R0, 48         ; a = 48
@@ -1186,27 +1184,29 @@ fib_loop:
 
 gcd_loop:
     SUB  R2, R0, R1     ; R2 = a - b, Z=1 if a==b
-    JZ   gcd_done       ; a == b -> done
+    JZ   gcd_done       ; a == b -> done, output R0
 
-    ; Extract bit 7 to detect a < b
-    ANDI R2, 0x80       ; R2 = R2 & 0x80
-    SHRI R2, 7          ; R2 = 1 if a<b, 0 if a>=b
-    CMPI R2, 1          ; Compare: Z=1 if R2==1 (a<b)
-    JZ   b_is_larger    ; R2==1 -> a < b
+    ; Is a >= b or a < b?  Test bit 7 of R2.
+    ; bit7=0: a>=b, R2 is valid positive difference
+    ; bit7=1: a<b,  R2 wrapped (borrow)
+    MOV  R3, R2         ; R3 = copy of a-b
+    SHRI R3, 7           ; R3 = 0 (a>=b) or 1 (a<b)
+    CMPI R3, 1           ; Z=1 if R3==1 (a<b)
+    JZ   b_larger       ; a < b -> b is larger
 
-    ; a >= b: a = a - b
-    SUB  R0, R0, R1
+    ; a >= b: a = a - b  (R2 already holds a-b, valid)
+    MOV  R0, R2
     JMP  gcd_loop
 
-b_is_larger:
+b_larger:
     ; b > a: b = b - a
-    SUB  R1, R1, R0
+    SUB  R1, R1, R0     ; R1 = b - a
     JMP  gcd_loop
 
 gcd_done:
     OUT  R0             ; Output GCD = 6
     HALT`,
-        description: 'Computes GCD(48, 18) = 6 using Euclidean subtraction method'
+        description: 'Computes GCD(48, 18) = 6 via Euclidean subtraction'
     }
 };
 
