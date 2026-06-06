@@ -812,6 +812,15 @@ function executeOneInstruction() {
         cpu.pc = (cpu.pc + 4) & 0xFF;
     }
 
+    // DEBUG: log every instruction executed
+    if (cpu.exec_count < 30) {
+        console.log(`[${cpu.exec_count}] PC=${pc_before.toString(16)} op=${opcode.toString(16)} ` +
+            `R0=${cpu.regs[0].toString(16)} R1=${cpu.regs[1].toString(16)} ` +
+            `R2=${cpu.regs[2].toString(16)} R3=${cpu.regs[3].toString(16)} ` +
+            `Z=${cpu.flag_z} C=${cpu.flag_c} jump=${jump} target=${jump_target.toString(16)} ` +
+            `nextPC=${cpu.pc.toString(16)}`);
+    }
+
     cpu.exec_count++;
     return true;
 }
