@@ -14,3 +14,28 @@ webtalk*
 xsim.dir/
 vivado_project/
 .retry_count
+
+# --- Claude Code internal files ---
+.claude/
+
+# --- OS generated files ---
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+
+# --- Docs (only track leg_isa.md) ---
+docs/*
+!docs/leg_isa.md
+
+# --- Archives (not part of source) ---
+*.zip
+*.7z
+*.rar
+
