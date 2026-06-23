@@ -34,6 +34,10 @@ __pycache__/
 docs/*
 !docs/leg_isa.md
 
+# --- Binary documents ---
+*.docx
+*.pdf
+
 # --- Archives (not part of source) ---
 *.zip
 *.7z
